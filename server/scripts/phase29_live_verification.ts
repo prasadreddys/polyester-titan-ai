@@ -76,16 +76,24 @@ async function runPhase29Verification() {
   console.log(`Source Gateway  : ${marketsRes.source}`);
 
   const livePrices = new Map<string, number>();
-  for (const m of marketsRes.markets) {
-    if (m.lastPrice) {
-      livePrices.set(m.symbol.toUpperCase(), Number(m.lastPrice));
+  // Only accept finite positive prices from a verified catalog; all other entries remain unavailable.
+  if (marketsRes.status === 'verified') {
+    for (const market of marketsRes.markets) {
+      const price = typeof market.lastPrice === 'number'
+        ? market.lastPrice
+        : typeof market.lastPrice === 'string'
+          ? Number(market.lastPrice)
+          : Number.NaN;
+      if (Number.isFinite(price) && price > 0) {
+        livePrices.set(market.symbol.toUpperCase(), price);
+      }
     }
   }
 
   const liveExitPrice = livePrices.get(latestLive.symbol.toUpperCase());
-  console.log(`Fresh Live Price for ${latestLive.symbol}: ${liveExitPrice ? `$${liveExitPrice.toFixed(2)}` : 'UNAVAILABLE'}`);
+  console.log(`Fresh Live Price for ${latestLive.symbol}: ${liveExitPrice !== undefined ? `$${liveExitPrice.toFixed(2)}` : 'UNAVAILABLE'}`);
 
-  if (nowMs >= dueAtMs && liveExitPrice && liveExitPrice > 0) {
+  if (nowMs >= dueAtMs && liveExitPrice !== undefined && Number.isFinite(liveExitPrice) && liveExitPrice > 0) {
     console.log(`\n--- 5. Resolving Signal Outcome ---`);
     const evaluatedCount = evaluatePendingPaperSignals(livePrices);
     console.log(`Evaluated Signals Count: ${evaluatedCount}`);

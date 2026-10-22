@@ -235,11 +235,14 @@ export function recordPaperSignal(
   const evaluationDueAt = new Date(dueMs).toISOString();
 
   const mdSignal = decision.agentSignals.find(a => a.agentName === 'MarketDataAgent');
-  const entryPriceUsd = Number(
-    (mdSignal?.details as any)?.price || decision.proposedOrder?.price
-  );
+  const rawEntryPrice = (mdSignal?.details as any)?.price;
+  const entryPriceUsd = typeof rawEntryPrice === 'number'
+    ? rawEntryPrice
+    : typeof rawEntryPrice === 'string'
+      ? Number(rawEntryPrice)
+      : Number.NaN;
 
-  if (!entryPriceUsd || isNaN(entryPriceUsd) || entryPriceUsd <= 0) {
+  if (!Number.isFinite(entryPriceUsd) || entryPriceUsd <= 0) {
     addLog('warn', 'system', `[PaperTradingEngine] Rejected paper signal creation: invalid or missing market entry price for ${decision.symbol}`);
     return null;
   }
@@ -309,16 +312,17 @@ export function evaluatePendingPaperSignals(
         exitPrice = entryVal.price;
         if (entryVal.timestamp) {
           exitPriceTime = entryVal.timestamp;
-          const ageMs = nowMs - new Date(entryVal.timestamp).getTime();
-          if (ageMs > 120000) {
+          const timestampMs = new Date(entryVal.timestamp).getTime();
+          const ageMs = nowMs - timestampMs;
+          if (!Number.isFinite(timestampMs) || ageMs < 0 || ageMs > 120000) {
             // Stale market ticker (>120s old) - reject resolution
-            addLog('warn', 'system', `[PaperTradingEngine] Rejected resolution for ${record.signalId}: Market ticker timestamp is stale (${Math.round(ageMs / 1000)}s old)`);
+            addLog('warn', 'system', `[PaperTradingEngine] Rejected resolution for ${record.signalId}: Market ticker timestamp is invalid, future-dated, or stale`);
             continue;
           }
         }
       }
 
-      if (!exitPrice || exitPrice <= 0) {
+      if (!Number.isFinite(exitPrice) || exitPrice <= 0) {
         // Missing valid price data — do not count as completed
         continue;
       }
@@ -518,4 +522,3 @@ export function resetPaperTradingStoreForTest() {
   lastEvaluationTimestamp = new Date().toISOString();
   saveStoreToDisk();
 }
-

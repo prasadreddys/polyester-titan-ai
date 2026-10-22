@@ -9,7 +9,6 @@ import { config, sanitizeLog } from '../config.js';
 import {
   coordinateStrategy,
   evaluateRiskGovernor,
-  evaluateSignalOutcome,
   resetStrategyStateForTest,
   getStrategyConfig,
   runMarketDataAgent,
@@ -91,24 +90,14 @@ async function runPhase22Validation() {
   console.log(`  - Risk Approval: ${dupDecision.riskApproved}`);
   console.log(`  - Risk Reason: ${dupDecision.riskReason}`);
 
-  // Task 6: Evaluate Signal Outcome against subsequent price
+  // Task 6: Do not infer performance from a fabricated follow-up price.
   console.log('\n--- Task 6: Subsequent Market Data Signal Evaluation ---');
   const btcDec = decisionsMap.get('BTC-USDT');
   if (btcDec) {
     const mdSig = btcDec.agentSignals.find((s: any) => s.agentName === 'MarketDataAgent');
     const currentPrice = Number((mdSig?.details as any)?.price);
     if (Number.isFinite(currentPrice) && currentPrice > 0) {
-      // Compare with a clearly hypothetical follow-up price; never invent the initial observation.
-      const observedHigherPrice = Number((currentPrice * 1.005).toFixed(2));
-      const evalResult = evaluateSignalOutcome(btcDec, observedHigherPrice);
-      console.log(`Signal Evaluation Outcome (Hypothetical Price Delta Observation):`);
-      console.log(`  - Initial Observed Price: $${evalResult.initialPrice} USDT`);
-      console.log(`  - Subsequent Price: $${evalResult.subsequentObservedPrice} USDT`);
-      console.log(`  - Price Movement: +$${evalResult.priceDeltaUsd} USDT (+${evalResult.priceDeltaPercent}%)`);
-      console.log(`  - Signal Direction: ${evalResult.direction.toUpperCase()}`);
-      console.log(`  - Signal Outcome: ${evalResult.signalOutcome.toUpperCase()}`);
-      console.log(`  - Evaluation Tag: ${evalResult.evaluationType}`);
-      console.log(`  - Disclaimer: ${evalResult.disclaimer}`);
+      console.log('Verified initial market price is available; outcome evaluation skipped without a subsequent observed price.');
     } else {
       console.log('Signal outcome skipped: no verified initial market price was available.');
     }

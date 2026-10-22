@@ -111,21 +111,33 @@ async function runDiagnosis() {
       console.log(`  - Error Message: ${sanitizeLog(err.message || String(err))}`);
     }
 
-    // 2d. Order Preview (Read-only Dry-Run)
-    console.log('\n[SDK] Probing client.orders.preview():');
+    // 2d. Order Preview (Read-only Dry-Run) using only a verified observed price.
     try {
-      const preview = await client.orders.preview({
-        symbolId: 1,
-        side: 'buy',
-        qty: '0.00006355',
-        execution: {
-          type: 'limit_gtc',
-          price: '78678.76',
-          postOnly: false,
-        },
-      });
-      console.log(`  - Status: SUCCESS`);
-      console.log(`  - Admissible: ${preview.admissible}`);
+      const spotConfig = await client.marketData.getSpotConfig();
+      const btcPair = spotConfig.pairs.find(pair => pair.symbol === 'BTC-USDT');
+      if (!btcPair) {
+        console.log('\n[SDK] Order Preview: SKIPPED (BTC-USDT missing from verified spot configuration)');
+      } else {
+        const overview = await client.marketOverview.list({ symbolIds: [btcPair.symbolId] });
+        const marketPrice = Number(overview.markets[0]?.lastPrice);
+        if (!Number.isFinite(marketPrice) || marketPrice <= 0) {
+          console.log('\n[SDK] Order Preview: SKIPPED (No valid observed BTC-USDT price)');
+        } else {
+          console.log('\n[SDK] Probing client.orders.preview() with observed market price:');
+          const preview = await client.orders.preview({
+            symbolId: btcPair.symbolId,
+            side: 'buy',
+            qty: '0.00006355',
+            execution: {
+              type: 'limit_gtc',
+              price: String(marketPrice),
+              postOnly: false,
+            },
+          });
+          console.log(`  - Status: SUCCESS`);
+          console.log(`  - Admissible: ${preview.admissible}`);
+        }
+      }
     } catch (err: any) {
       console.log(`  - Status: FAILED`);
       console.log(`  - Error Message: ${sanitizeLog(err.message || String(err))}`);

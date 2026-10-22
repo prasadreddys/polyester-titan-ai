@@ -58,34 +58,35 @@ async function verifyPolicy() {
   // 3. Trading Authorization Check (orders.preview)
   console.log('\n[3/3] Verifying Trading Authorization (client.orders.preview)...');
   try {
-    // We use a dummy BTC-USDT preview (Symbol ID 1 is usually BTC-USDT on testnet)
-    // We fetch real metadata first to be sure of the symbolId if possible
-    let symbolId = 1;
-    try {
-       const spotConfig = await client.marketData.getSpotConfig();
-       const btc = spotConfig.pairs.find(p => p.symbol === 'BTC-USDT');
-       if (btc) symbolId = btc.symbolId;
-    } catch (e) {
-       console.warn('NOTE: Could not fetch spot config, using default symbolId 1 for preview.');
-    }
-
-    const preview = await client.orders.preview({
-      symbolId,
-      side: 'buy',
-      qty: '0.0001',
-      execution: {
-        type: 'limit_gtc',
-        price: '50000.00',
-        postOnly: false,
-      }
-    });
-
-    if (preview.admissible) {
-      console.log('SUCCESS: Trading authorization verified (Order is admissible).');
+    const spotConfig = await client.marketData.getSpotConfig();
+    const btc = spotConfig.pairs.find(pair => pair.symbol === 'BTC-USDT');
+    if (!btc) {
+      console.log('SKIPPED: BTC-USDT is missing from verified spot configuration.');
     } else {
-      console.log(`WARNING: Order admissible: false. Reason: ${preview.rejection?.code}`);
-      if (preview.rejection?.code === 'POLICY_SPOT_TRADE_DENY') {
-        console.log('DIAGNOSTIC: "POLICY_SPOT_TRADE_DENY" confirmed. API key lacks spot-trading permissions.');
+      const overview = await client.marketOverview.list({ symbolIds: [btc.symbolId] });
+      const marketPrice = Number(overview.markets[0]?.lastPrice);
+      if (!Number.isFinite(marketPrice) || marketPrice <= 0) {
+        console.log('SKIPPED: No valid observed BTC-USDT price is available for preview.');
+      } else {
+        const preview = await client.orders.preview({
+          symbolId: btc.symbolId,
+          side: 'buy',
+          qty: '0.0001',
+          execution: {
+            type: 'limit_gtc',
+            price: String(marketPrice),
+            postOnly: false,
+          },
+        });
+
+        if (preview.admissible) {
+          console.log('SUCCESS: Trading authorization verified (Order is admissible).');
+        } else {
+          console.log(`WARNING: Order admissible: false. Reason: ${preview.rejection?.code}`);
+          if (preview.rejection?.code === 'POLICY_SPOT_TRADE_DENY') {
+            console.log('DIAGNOSTIC: "POLICY_SPOT_TRADE_DENY" confirmed. API key lacks spot-trading permissions.');
+          }
+        }
       }
     }
   } catch (err: any) {

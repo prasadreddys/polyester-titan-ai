@@ -30,6 +30,7 @@ async function runVerification() {
   // 2. Fresh Market Rules & Data
   let spotConfig;
   let btcPair: any;
+  let observedBtcPrice: number | null = null;
   try {
     spotConfig = await client.marketData.getSpotConfig();
     btcPair = spotConfig.pairs.find(p => p.symbolId === 1 || p.symbol === 'BTC-USDT');
@@ -44,10 +45,17 @@ async function runVerification() {
       console.log(`[2] Market Rules: FAIL (BTC-USDT not found)`);
     }
 
-    const overview = await client.marketOverview.list({ symbolIds: [btcPair?.symbolId || 1] });
-    const stats = overview.markets[0];
-    console.log(`[2] Market Data: PASS`);
-    console.log(`    - Last Price: ${stats?.lastPrice}`);
+    if (btcPair) {
+      const overview = await client.marketOverview.list({ symbolIds: [btcPair.symbolId] });
+      const lastPrice = Number(overview.markets[0]?.lastPrice);
+      if (Number.isFinite(lastPrice) && lastPrice > 0) {
+        observedBtcPrice = lastPrice;
+        console.log(`[2] Market Data: PASS`);
+        console.log(`    - Last Price: ${lastPrice}`);
+      } else {
+        console.log(`[2] Market Data: FAIL (No valid observed BTC-USDT price)`);
+      }
+    }
   } catch (err: any) {
     console.log(`[2] Market Rules/Data: FAIL (${err.message})`);
   }
@@ -65,21 +73,22 @@ async function runVerification() {
 
   // 4. Staged Order Preview
   const staged = {
-    symbolId: 1,
+    symbolId: btcPair?.symbolId,
     side: 'buy' as const,
     qty: '0.00006355',
-    price: '78678.76',
     maxNotional: 5.01
   };
 
-  try {
+  if (!btcPair || observedBtcPrice === null) {
+    console.log('[4] Order Preview: SKIPPED (Verified BTC-USDT price or market rules unavailable)');
+  } else try {
     const preview = await client.orders.preview({
-      symbolId: staged.symbolId,
+      symbolId: btcPair.symbolId,
       side: staged.side,
       qty: staged.qty,
       execution: {
         type: 'limit_gtc',
-        price: staged.price,
+        price: String(observedBtcPrice),
         postOnly: false,
       }
     });
@@ -94,12 +103,13 @@ async function runVerification() {
     const tickSize = parseFloat(btcPair.tickSize);
     const stepSize = parseFloat(btcPair.stepSize);
     const qty = parseFloat(staged.qty);
-    const price = parseFloat(staged.price);
+    const price = observedBtcPrice ?? Number.NaN;
     const notional = qty * price;
     const minNotional = parseFloat(btcPair.minNotionalQuote);
     const minQty = parseFloat(btcPair.minQtyBase);
 
-    const priceValid = Math.abs(price / tickSize - Math.round(price / tickSize)) < 0.0001;
+    const priceValid = Number.isFinite(price) && price > 0 &&
+      Math.abs(price / tickSize - Math.round(price / tickSize)) < 0.0001;
     const qtyValid = Math.abs(qty / stepSize - Math.round(qty / stepSize)) < 0.0001;
     const notionalValid = notional >= (minNotional - 0.00000001) && notional <= staged.maxNotional;
     const minQtyValid = qty >= minQty;

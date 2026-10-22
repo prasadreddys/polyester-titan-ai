@@ -236,3 +236,70 @@ test('Phase 25 - Rejection of Paper Signal on Missing or Invalid Entry Market Pr
   assert.strictEqual(record, null); // Reject signal creation when no valid price exists
 });
 
+test('Phase 25 - A proposed-order price cannot substitute for missing market data', () => {
+  resetPaperTradingStoreForTest();
+  const decision: StrategyDecision = {
+    decisionId: 'dec_paper_order_price_only',
+    symbol: 'BTC-USDT',
+    timestamp: new Date().toISOString(),
+    action: 'buy',
+    compositeScore: 80,
+    confidence: 80,
+    explanation: ['Market data price is required'],
+    agentSignals: [{ agentName: 'MarketDataAgent', signal: 'reject', confidence: 0, timestamp: new Date().toISOString(), details: {} }],
+    riskApproved: true,
+    proposedOrder: {
+      symbol: 'BTC-USDT',
+      side: 'buy',
+      type: 'limit',
+      price: 80000,
+      quantity: 0.001,
+      clientOrderId: 'cli_order_price_only',
+    },
+    isDryRun: true,
+  };
+
+  assert.strictEqual(recordPaperSignal(decision), null);
+});
+
+test('Phase 25 - Non-finite paper entry and exit prices are rejected', () => {
+  resetPaperTradingStoreForTest();
+  const decision: StrategyDecision = {
+    decisionId: 'dec_paper_infinite_price',
+    symbol: 'BTC-USDT',
+    timestamp: new Date(Date.now() - 600000).toISOString(),
+    action: 'buy',
+    compositeScore: 80,
+    confidence: 80,
+    explanation: ['Non-finite prices are invalid'],
+    agentSignals: [{ agentName: 'MarketDataAgent', signal: 'neutral', confidence: 100, timestamp: new Date().toISOString(), details: { price: Number.POSITIVE_INFINITY } }],
+    riskApproved: true,
+    isDryRun: true,
+  };
+
+  assert.strictEqual(recordPaperSignal(decision), null);
+});
+
+test('Phase 25 - Non-finite exit price leaves paper signal unresolved', () => {
+  resetPaperTradingStoreForTest();
+  const decision: StrategyDecision = {
+    decisionId: 'dec_paper_valid_entry',
+    symbol: 'BTC-USDT',
+    timestamp: new Date(Date.now() - 600000).toISOString(),
+    action: 'buy',
+    compositeScore: 80,
+    confidence: 80,
+    explanation: ['Non-finite exit price must not produce metrics'],
+    agentSignals: [{ agentName: 'MarketDataAgent', signal: 'neutral', confidence: 100, timestamp: new Date().toISOString(), details: { price: 80000 } }],
+    riskApproved: true,
+    isDryRun: true,
+  };
+  const record = recordPaperSignal(decision);
+  assert.ok(record);
+
+  assert.strictEqual(
+    evaluatePendingPaperSignals(new Map([['BTC-USDT', Number.POSITIVE_INFINITY]])),
+    0,
+  );
+  assert.strictEqual(getPaperTradingSummary().unresolvedSignalsCount, 1);
+});
