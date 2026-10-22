@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>POLYESTER TITAN AI</title>
+    <meta name="description" content="Secure automated trading bot terminal and integration bridge for Polyester Testnet with real-time health diagnostics, risk telemetry, and modular Python FastAPI support." />
+    <meta property="og:title" content="POLYESTER TITAN AI" />
+    <meta property="og:description" content="Secure automated trading bot terminal and integration bridge for Polyester Testnet with real-time health diagnostics, risk telemetry, and modular Python FastAPI support." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      /* Filter out errors whose origin is strictly a third-party browser extension script */
+      (function() {
+        function isExtensionUrl(url) {
+          return typeof url === 'string' && (
+            url.indexOf('chrome-extension://') === 0 ||
+            url.indexOf('moz-extension://') === 0 ||
+            url.indexOf('safari-web-extension://') === 0
+          );
+        }
+
+        window.addEventListener('error', function(event) {
+          // Strictly filter by verified external extension file origin only
+          if (event && isExtensionUrl(event.filename)) {
+            event.stopImmediatePropagation();
+            event.preventDefault();
+            return true;
+          }
+          // Real application errors continue to propagate normally
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(event) {
+          var reason = event && event.reason;
+          var stack = (reason && (reason.stack || reason.message)) || '';
+          if (typeof stack === 'string' && (
+            stack.indexOf('chrome-extension://') !== -1 ||
+            stack.indexOf('moz-extension://') !== -1 ||
+            stack.indexOf('safari-web-extension://') !== -1
+          )) {
+            event.stopImmediatePropagation();
+            event.preventDefault();
+          }
+          // Real application rejections continue to propagate normally
+        }, true);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

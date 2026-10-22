@@ -1,0 +1,6 @@
+{
+  "name": "POLYESTER TITAN AI",
+  "description": "Secure automated trading bot terminal and integration bridge for Polyester Testnet with real-time health diagnostics, risk telemetry, and modular Python FastAPI support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
