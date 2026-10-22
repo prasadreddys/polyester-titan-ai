@@ -87,9 +87,9 @@ export const polyesterPhase21bAdapter: UpstreamAdapter = {
     }
   },
 
-  async submitOrder(orderReq: any, approvalId?: string) {
+  async submitOrder(orderReq: any, approvalId?: string, options?: { forceLive?: boolean }) {
     // SECURITY GATE
-    if (config.botDryRun) {
+    if (config.botDryRun && options?.forceLive !== true) {
       return { success: false, error: 'Real testnet order submission is disabled while BOT_DRY_RUN=true.' };
     }
 

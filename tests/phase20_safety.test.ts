@@ -13,6 +13,7 @@ process.env.POLYESTER_API_SECRET_HEX = 'a'.repeat(64);
 import { config } from '../server/config.js';
 import { polyesterSdkAdapter } from '../server/polyesterAdapter.js';
 import { createManagedOrder } from '../server/orderManager.js';
+import { getUpstreamAdapter, setUpstreamAdapter, UpstreamAdapter } from '../server/upstreamAdapter.js';
 
 test('Phase 20 - Safety Invariants Locked', () => {
   assert.strictEqual(config.botAutoTradeEnabled, false, 'botAutoTradeEnabled must be false');
@@ -112,4 +113,50 @@ test('Phase 20 - Forced live execution still requires manual approval', async ()
   assert.strictEqual(result.code, 'MANUAL_APPROVAL_REQUIRED');
   assert.strictEqual(config.botDryRun, true);
   assert.strictEqual(config.botAutoTradeEnabled, false);
+});
+
+test('Phase 20 - Forced live intent reaches only the configured adapter submission', async () => {
+  const originalAdapter = getUpstreamAdapter();
+  let submittedOptions: { forceLive?: boolean } | undefined;
+  const testAdapter: UpstreamAdapter = {
+    name: 'TestAdapter',
+    isConfigured: () => true,
+    checkHealth: async () => ({ status: 'connected', httpStatus: 200, message: 'test fixture' }),
+    getMarkets: async () => ({ markets: [], status: 'connected', source: 'test fixture' }),
+    getAccount: async () => ({ accountId: 'test', availableBalance: 10000, currency: 'USDT' }),
+    submitOrder: async (_request, _approvalId, options) => {
+      submittedOptions = options;
+      return { success: true, orderId: 'test_only_order' };
+    },
+    cancelOrder: async () => ({ success: true }),
+    getOrderStatus: async () => ({ success: true, status: 'open' }),
+  };
+  setUpstreamAdapter(testAdapter);
+
+  try {
+    const result = await createManagedOrder({
+      symbol: 'BTC-USDT',
+      side: 'buy',
+      type: 'limit',
+      price: 60000,
+      quantity: 0.0001,
+      clientOrderId: `force_live_adapter_test_${Date.now()}`,
+    }, {
+      maxPositionSizeUsd: 1000,
+      maxDrawdownPercent: 5,
+      slippageTolerancePercent: 1,
+      stopLossPercent: 2,
+      maxOpenOrders: 5,
+      killSwitchActive: false,
+      allowedSymbols: ['BTC-USDT'],
+    }, 'test-approval', { forceLive: true });
+
+    assert.strictEqual(result.success, true);
+    assert.strictEqual(result.order?.isDryRun, false);
+    assert.deepStrictEqual(submittedOptions, { forceLive: true });
+    assert.strictEqual(config.botDryRun, true);
+    assert.strictEqual(config.botAutoTradeEnabled, false);
+  } finally {
+    setUpstreamAdapter(originalAdapter);
+  }
 });

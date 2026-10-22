@@ -14,7 +14,11 @@ export interface UpstreamAdapter {
   checkHealth(): Promise<{ status: string; httpStatus: number | null; message: string }>;
   getMarkets(): Promise<{ markets: any[]; status: string; source: string }>;
   getAccount(): Promise<{ accountId: string; availableBalance: number; currency: string }>;
-  submitOrder(orderReq: any, approvalId?: string): Promise<{ success: boolean; orderId?: string; message?: string; error?: string; uncertain?: boolean }>;
+  submitOrder(
+    orderReq: any,
+    approvalId?: string,
+    options?: { forceLive?: boolean }
+  ): Promise<{ success: boolean; orderId?: string; message?: string; error?: string; uncertain?: boolean }>;
   cancelOrder(orderId: string): Promise<{ success: boolean; error?: string }>;
   getOrderStatus(orderId: string): Promise<{ success: boolean; status?: string; error?: string }>;
   getOrderByClientOrderId?(clientOrderId: string): Promise<{ success: boolean; found: boolean; orderId?: string; status?: string; error?: string }>;
@@ -44,7 +48,7 @@ export const defaultRestAdapter: UpstreamAdapter = {
       currency: acct.currency,
     };
   },
-  async submitOrder(orderReq, approvalId) {
+  async submitOrder(orderReq, approvalId, options) {
     return { success: true, orderId: `adapter_ord_${Date.now()}` };
   },
   async cancelOrder(orderId) {

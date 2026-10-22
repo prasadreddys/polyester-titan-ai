@@ -142,7 +142,7 @@ export async function createManagedOrder(
     addLog('info', 'risk', `Submitting non-dry-run order ${req.clientOrderId} to ${adapter.name} with approvalId: ${approvalId || 'NONE'}`);
     let upstream;
     try {
-      upstream = await adapter.submitOrder(req, approvalId);
+      upstream = await adapter.submitOrder(req, approvalId, { forceLive: options?.forceLive === true });
     } catch (err) {
       upstream = {
         success: false,
