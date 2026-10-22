@@ -38,6 +38,7 @@ import {
   evaluateReadiness,
   executeStrategyDecision,
   setOperatorAuthorization,
+  checkAuthorizationValid,
   getPerformanceStats,
 } from './server/strategyEngine.js';
 import { validateCredentialsFormat } from './server/credentialValidator.js';
@@ -306,6 +307,49 @@ async function startServer() {
       success: true,
       order: result.order,
       message: 'Testnet order successfully validated, dry-run executed, and registered in audit log.',
+    });
+  });
+
+  app.post('/api/orders/live-oneshot', async (req, res) => {
+    const CONFIRM_TOKEN = 'I_UNDERSTAND_THIS_SUBMITS_A_REAL_TESTNET_ORDER';
+    if (req.body?.confirmLive !== CONFIRM_TOKEN) {
+      return res.status(400).json({
+        success: false,
+        error: `Missing or incorrect confirmLive token. Must be exactly: ${CONFIRM_TOKEN}`,
+        code: 'LIVE_CONFIRMATION_REQUIRED',
+      });
+    }
+    if (emergencyKillSwitch) {
+      return res.status(400).json({
+        success: false,
+        error: 'Emergency kill switch is active. Live order blocked.',
+        code: 'KILL_SWITCH_ACTIVE',
+      });
+    }
+    const auth = checkAuthorizationValid();
+    if (!auth.valid) {
+      return res.status(403).json({
+        success: false,
+        error: `Live one-shot blocked: ${auth.reason}`,
+        code: 'OPERATOR_AUTHORIZATION_INVALID',
+      });
+    }
+    const risk = {
+      ...riskSettings,
+      killSwitchActive: emergencyKillSwitch,
+      allowedSymbols: ['BTC-USDT', 'ETH-USDT', 'SOL-USDT', 'POLY-USDT'],
+    };
+    const { approvalId, confirmLive, ...orderRequest } = req.body;
+    addLog('warn', 'risk', `LIVE ONE-SHOT order requested for ${orderRequest.symbol}`);
+    const result = await createManagedOrder(orderRequest, risk, approvalId, { forceLive: true });
+    if (!result.success) {
+      return res.status(400).json({ success: false, order: result.order, error: result.error, code: result.code });
+    }
+    res.json({
+      success: true,
+      order: result.order,
+      message: 'One-shot live testnet order submitted. Dry-run default and auto-trading remain unchanged.',
+      liveOneShot: true,
     });
   });
 

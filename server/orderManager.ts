@@ -88,12 +88,13 @@ import { getUpstreamAdapter } from './upstreamAdapter.js';
 export async function createManagedOrder(
   req: OrderRequest,
   risk: RiskSettings,
-  approvalId?: string
+  approvalId?: string,
+  options?: { forceLive?: boolean }
 ): Promise<{ success: boolean; order?: ManagedOrder; error?: string; code?: string }> {
   const openCount = Array.from(activeOrders.values()).filter(
     o => o.status === 'open' || o.status === 'partially_filled' || o.status === 'pending'
   ).length;
-  const isDryRun = config.botDryRun;
+  const isDryRun = options?.forceLive === true ? false : config.botDryRun;
   const adapter = isDryRun ? null : getUpstreamAdapter();
 
   if (!isDryRun && !approvalId) {

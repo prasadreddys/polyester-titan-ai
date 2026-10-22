@@ -86,3 +86,30 @@ test('Phase 20 - Order Manager Honors Dry Run', async () => {
   assert.strictEqual(result.order?.isDryRun, true, 'Order created by manager must be marked as dry-run');
   assert.strictEqual(result.order?.status, 'open', 'Dry-run order should be simulated as open');
 });
+
+test('Phase 20 - Forced live execution still requires manual approval', async () => {
+  const req = {
+    symbol: 'BTC-USDT',
+    side: 'buy' as const,
+    type: 'limit' as const,
+    price: 60000,
+    quantity: 0.0001,
+    clientOrderId: `force_live_test_${Date.now()}`,
+  };
+  const risk = {
+    maxPositionSizeUsd: 1000,
+    maxDrawdownPercent: 5,
+    slippageTolerancePercent: 1,
+    stopLossPercent: 2,
+    maxOpenOrders: 5,
+    killSwitchActive: false,
+    allowedSymbols: ['BTC-USDT'],
+  };
+
+  const result = await createManagedOrder(req, risk, undefined, { forceLive: true });
+
+  assert.strictEqual(result.success, false);
+  assert.strictEqual(result.code, 'MANUAL_APPROVAL_REQUIRED');
+  assert.strictEqual(config.botDryRun, true);
+  assert.strictEqual(config.botAutoTradeEnabled, false);
+});
